@@ -1,0 +1,24 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ./app
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: 8080
+    depends_on:
+      - initdb
+
+  initdb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ./dbinit
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+
+volumes:
+  db_data:
