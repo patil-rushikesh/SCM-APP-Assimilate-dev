@@ -79,10 +79,7 @@ func (h *UserHandler) Authenticate(c *gin.Context) {
 	)
 
 	// Return token in response
-	resp := gin.H{
-		"user": user,
-	}
-	utils.SuccessResponse(c, http.StatusOK, "User authenticated successfully", resp)
+	utils.SuccessResponse(c, http.StatusOK, "User authenticated successfully", user)
 }
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
