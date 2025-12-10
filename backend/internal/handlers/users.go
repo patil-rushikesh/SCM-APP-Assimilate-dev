@@ -14,16 +14,16 @@ type UserHandler struct {
 }
 
 func (h *UserHandler) Logout(c *gin.Context) {
-	// Clear the cookie by setting MaxAge to -1
-	c.SetCookie(
-		"user_token",
-		"",
-		-1,
-		"/",
-		"",
-		false, // Secure=false for local dev
-		true,  // HttpOnly
-	)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "user_token",
+		Value:    "",
+		Path:     "/",
+		Domain:   "", // set to your backend domain in production
+		MaxAge:   -1,
+		Secure:   true, // set true for production/HTTPS
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode, // Lax for local dev, None for cross-site in production
+	})
 	utils.SuccessResponse(c, http.StatusOK, "Logged out successfully", nil)
 }
 
