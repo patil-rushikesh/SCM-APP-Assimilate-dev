@@ -28,7 +28,7 @@ export const useAuth = () => {
 };
 
 const loginApi = async (email: string, password: string): Promise<User> => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/auth/login`, {
+    const res = await fetch(`api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -50,7 +50,7 @@ const loginApi = async (email: string, password: string): Promise<User> => {
 
 const fetchUserApi = async (userToken?: string): Promise<User | null> => {
     try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/auth/me`, {
+        const res = await fetch(`api/me`, {
             headers: userToken ? { 'Authorization': `Bearer ${userToken}` } : {},
             credentials: 'include',
         });
@@ -87,24 +87,25 @@ export const AuthProvider = ({ children, userToken }: { children: ReactNode, use
         return () => { isMounted = false; };
     }, [userToken]);
 
-    const login = async (email: string, password: string) => {
+
+    const login = React.useCallback(async (email: string, password: string) => {
         setLoading(true);
         try {
-            const user = await loginApi(email, password);
-            console.log('Logged in user:', user);
-            setUser(user);
+            await loginApi(email, password);
+            const userData = await fetchUserApi();
+            setUser(userData);
             router.replace('/dashboard');
         } catch (err) {
             throw err;
         } finally {
             setLoading(false);
         }
-    };
+    }, [router]);
 
-    const logout = async () => {
+    const logout = React.useCallback(async () => {
         setLogoutLoading(true);
         try {
-            await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/auth/logout`, {
+            await fetch(`api/logout`, {
                 method: 'POST',
                 credentials: 'include',
             });
@@ -114,12 +115,12 @@ export const AuthProvider = ({ children, userToken }: { children: ReactNode, use
         setUser(null);
         router.replace('/');
         setLogoutLoading(false);
-    };
+    }, [router]);
 
-    const hasRole = (roles: Role | Role[]) => {
+    const hasRole = React.useCallback((roles: Role | Role[]) => {
         if (!user) return false;
         return Array.isArray(roles) ? roles.includes(user.role) : user.role === roles;
-    };
+    }, [user]);
 
     return (
         <AuthContext.Provider value={{ user, loading, login, logout, hasRole }}>

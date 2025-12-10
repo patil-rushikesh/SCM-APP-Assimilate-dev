@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/patil-rushikesh/scm-backend/internal/models"
 	"github.com/patil-rushikesh/scm-backend/internal/services"
 	"github.com/patil-rushikesh/scm-backend/internal/utils"
+	"net/http"
 )
 
 type UserHandler struct {
@@ -14,16 +14,16 @@ type UserHandler struct {
 }
 
 func (h *UserHandler) Logout(c *gin.Context) {
-	// Clear the cookie by setting MaxAge to -1
-	c.SetCookie(
-		"user_token",
-		"",
-		-1,
-		"/",
-		"",
-		false, // Secure=false for local dev
-		true,  // HttpOnly
-	)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "user_token",
+		Value:    "",
+		Path:     "/",
+		Domain:   "", // set to your backend domain in production
+		MaxAge:   -1,
+		Secure:   true, // set true for production/HTTPS
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode, // Lax for local dev, None for cross-site in production
+	})
 	utils.SuccessResponse(c, http.StatusOK, "Logged out successfully", nil)
 }
 
@@ -67,18 +67,17 @@ func (h *UserHandler) Authenticate(c *gin.Context) {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to generate token", err)
 		return
 	}
-	// For local development, set secure=false so cookies work over HTTP
-	c.SetCookie(
-		"user_token",
-		token,
-		3600,
-		"/",
-		"",
-		false, // Secure=false for local dev (set true for production/HTTPS)
-		true,  // HttpOnly (not accessible via JS)
-	)
-
-	// Return token in response
+	// Set cookie with appropriate attributes for local dev (Secure=false, SameSite=Lax)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "user_token",
+		Value:    token,
+		Path:     "/",
+		Domain:   "", // set to your backend domain in production
+		MaxAge:   3600,
+		Secure:   true, // set true for production/HTTPS
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode, // Lax for local dev, None for cross-site in production
+	})
 	resp := gin.H{
 		"user": user,
 	}
