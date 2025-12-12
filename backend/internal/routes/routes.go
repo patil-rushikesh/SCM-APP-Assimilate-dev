@@ -36,6 +36,8 @@ func SetupRoutes(router *gin.Engine, h *handlers.Handlers) {
 			assets.POST("/", h.Asset.CreateAsset)
 			assets.GET("/", h.Asset.GetAllAssets)
 			assets.GET("/:id", h.Asset.GetAsset)
+			assets.PUT("/:id", h.Asset.UpdateAsset)
+    		assets.DELETE("/:id", h.Asset.DeleteAsset)
 		}
 
 		// // Scan routes
