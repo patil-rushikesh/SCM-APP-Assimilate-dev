@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { PageHeader, StatsGrid, StatCard, Table } from "@/components/dashboard-components"
-import { Server, AlertTriangle, CheckCircle2, Clock, X } from "lucide-react"
+import { Server, AlertTriangle, CheckCircle2, Clock, X, Monitor, MonitorSmartphone, DownloadCloud } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -12,6 +12,54 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+
+// Replace Lucide icons with SVG logos for Linux and Windows
+const LinuxLogo = () => (
+  <svg className="inline w-4 h-4 mr-1 align-text-bottom" viewBox="0 0 32 32" fill="none">
+    <ellipse cx="16" cy="16" rx="16" ry="16" fill="#333" />
+    <ellipse cx="16" cy="20" rx="7" ry="9" fill="#fff" />
+    <ellipse cx="13" cy="15" rx="1.2" ry="2" fill="#333" />
+    <ellipse cx="19" cy="15" rx="1.2" ry="2" fill="#333" />
+    <ellipse cx="16" cy="24" rx="3" ry="1.2" fill="#F9D923" />
+  </svg>
+)
+
+const WindowsLogo = () => (
+  <svg className="inline w-4 h-4 mr-1 align-text-bottom" viewBox="0 0 32 32" fill="none">
+    <rect width="32" height="32" rx="6" fill="#00ADEF" />
+    <rect x="6" y="8" width="8" height="7" fill="#fff" />
+    <rect x="18" y="8" width="8" height="7" fill="#fff" />
+    <rect x="6" y="17" width="8" height="7" fill="#fff" />
+    <rect x="18" y="17" width="8" height="7" fill="#fff" />
+  </svg>
+)
+
+// ComplianceBar component for visual compliance score
+const ComplianceBar = ({ score, status }: { score?: number; status?: string }) => {
+	// show empty muted bar + dash when score not available or Pending
+	if (score === undefined || status === "Pending") {
+		return (
+			<div className="flex items-center gap-2">
+				<div className="w-24 h-3 border border-muted rounded bg-transparent" />
+				<span className="text-xs text-muted-foreground">—</span>
+			</div>
+		)
+	}
+	let barColor = "bg-green-500"
+	if (score < 60) barColor = "bg-red-500"
+	else if (score < 85) barColor = "bg-yellow-400"
+	return (
+		<div className="flex items-center gap-2">
+			<div className="w-24 h-3 bg-gray-200 rounded overflow-hidden">
+				<div
+					className={`h-3 ${barColor}`}
+					style={{ width: `${score}%` }}
+				/>
+			</div>
+			<span className="text-xs text-muted-foreground">{score}%</span>
+		</div>
+	)
+}
 
 export default function AssetsPage() {
   const assetStats = [
@@ -30,17 +78,27 @@ export default function AssetsPage() {
     const owners = ["Alice", "Bob", "Carol", "Dave"]
     for (let i = 1; i <= 100; i++) {
       const id = `asset-${String(i).padStart(3, "0")}`
+      const osType = i % 2 === 0 ? "Linux" : "Windows"
+      // Simulate compliance score or blank for pending
+      let complianceScore: number | undefined = undefined
+      let complianceStatus = statuses[i % statuses.length]
+      if (complianceStatus !== "Pending") {
+        complianceScore = 50 + (i * 7) % 51 // 50-100%
+      }
       list.push({
         asset: id,
-        type: types[i % types.length],
-        status: statuses[i % statuses.length],
-        location: locations[i % locations.length],
-        lastScanned: `${i % 24} hours ago`,
-        owner: owners[i % owners.length],
-        tags: `tag${i % 5},tag${(i + 1) % 5}`,
+        os: {
+          name: osType,
+          icon: osType === "Linux"
+            ? <LinuxLogo />
+            : <WindowsLogo />
+        },
+        environment: ["Production", "QA", "Development", "DMZ", "Cloud", "Staging"][i % 6],
         connector: i % 2 === 0 ? "SSH" : "HTTPS",
-        discoverySource: i % 3 === 0 ? "CMDB" : i % 3 === 1 ? "AWS" : "Manual",
-        externalRef: `ref-${i}`,
+        lastScanned: `${i % 24} hours ago`,
+        compliance: { score: complianceScore, status: complianceStatus },
+        exceptions: i % 4 === 0 ? "2" : "0",
+        status: complianceStatus,
         actions: (
           <Button asChild variant="ghost" size="sm">
             <Link href={`/dashboard/assets/${id}`}>
@@ -55,46 +113,78 @@ export default function AssetsPage() {
 
   const [page, setPage] = useState(1)
   const perPage = 10
-  // Filter/search state
+
+  // Unique values for filters (now based on generated asset fields)
+  const osOptions = useMemo(() => ["Linux", "Windows"], [])
+  const environmentOptions = useMemo(
+    () => Array.from(new Set(assets.map(a => a.environment))),
+    [assets]
+  )
+  const connectorOptions = useMemo(
+    () => Array.from(new Set(assets.map(a => a.connector))),
+    [assets]
+  )
+  const statusOptions = useMemo(
+    () => Array.from(new Set(assets.map(a => a.status))),
+    [assets]
+  )
+
+  // Filter/search state (updated for new columns)
   const [search, setSearch] = useState("")
-  const [typeFilter, setTypeFilter] = useState("all")
+  const [osFilter, setOsFilter] = useState("all")
+  const [environmentFilter, setEnvironmentFilter] = useState("all")
+  const [connectorFilter, setConnectorFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [locationFilter, setLocationFilter] = useState("all")
-  const [ownerFilter, setOwnerFilter] = useState("all")
 
-  // Add Asset form state for connector type and SSH auth type
-  const [connectorType, setConnectorType] = useState<string>("ssh")
-  const [sshAuthType, setSshAuthType] = useState<string>("password")
-
-  // Unique values for filters
-  const typeOptions = useMemo(() => Array.from(new Set(assets.map(a => a.type))), [assets])
-  const statusOptions = useMemo(() => Array.from(new Set(assets.map(a => a.status))), [assets])
-  const locationOptions = useMemo(() => Array.from(new Set(assets.map(a => a.location))), [assets])
-  const ownerOptions = useMemo(() => Array.from(new Set(assets.map(a => a.owner))), [assets])
-
-  // Filtered assets
+  // Filtered assets (updated for new columns)
   const filteredAssets = useMemo(() => {
     return assets.filter(a => {
-      if (search && !(
-        a.asset.toLowerCase().includes(search.toLowerCase()) ||
-        a.type.toLowerCase().includes(search.toLowerCase()) ||
-        a.status.toLowerCase().includes(search.toLowerCase()) ||
-        a.location.toLowerCase().includes(search.toLowerCase()) ||
-        a.owner.toLowerCase().includes(search.toLowerCase())
-      )) return false
-      if (typeFilter !== "all" && a.type !== typeFilter) return false
+      if (
+        search &&
+        !(
+          a.asset.toLowerCase().includes(search.toLowerCase()) ||
+          a.os.name.toLowerCase().includes(search.toLowerCase()) ||
+          a.environment.toLowerCase().includes(search.toLowerCase()) ||
+          a.connector.toLowerCase().includes(search.toLowerCase()) ||
+          a.status.toLowerCase().includes(search.toLowerCase())
+        )
+      )
+        return false
+      if (osFilter !== "all" && a.os.name !== osFilter) return false
+      if (environmentFilter !== "all" && a.environment !== environmentFilter) return false
+      if (connectorFilter !== "all" && a.connector !== connectorFilter) return false
       if (statusFilter !== "all" && a.status !== statusFilter) return false
-      if (locationFilter !== "all" && a.location !== locationFilter) return false
-      if (ownerFilter !== "all" && a.owner !== ownerFilter) return false
       return true
     })
-  }, [assets, search, typeFilter, statusFilter, locationFilter, ownerFilter])
+  }, [assets, search, osFilter, environmentFilter, connectorFilter, statusFilter])
 
   const totalPages = Math.ceil(filteredAssets.length / perPage)
   const pagedData = useMemo(() => {
     const start = (page - 1) * perPage
     return filteredAssets.slice(start, start + perPage)
   }, [filteredAssets, page])
+
+  // Patch pagedData to render OS icon+name and compliance bar in the table
+  const pagedDataWithOsIcon = useMemo(() =>
+    pagedData.map(row => ({
+      ...row,
+      os: (
+        <span className="flex items-center">
+          {row.os.icon}
+          <span>{row.os.name}</span>
+        </span>
+      ),
+      compliance: (
+        <ComplianceBar score={row.compliance?.score} status={row.compliance?.status} />
+      ),
+    })),
+    [pagedData]
+  )
+
+  // State for connector type in the Add Asset form
+  const [connectorType, setConnectorType] = useState<string>("ssh")
+  // State for SSH auth type in the Add Asset form
+  const [sshAuthType, setSshAuthType] = useState<string>("password")
 
   return (
     <DashboardLayout title="Assets">
@@ -110,16 +200,30 @@ export default function AssetsPage() {
       <div className="flex flex-col md:flex-row md:items-end gap-3 mb-6">
         <div className="flex gap-2 flex-1 flex-wrap">
           <Input
-            placeholder="Search assets..."
+            placeholder="Search asset, OS, environment, connector, status..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="w-48"
+            className="w-56"
           />
-          <Select value={typeFilter} onValueChange={v => { setTypeFilter(v); setPage(1) }}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Type" /></SelectTrigger>
+          <Select value={osFilter} onValueChange={v => { setOsFilter(v); setPage(1) }}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="OS" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {typeOptions.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+              <SelectItem value="all">All OS</SelectItem>
+              {osOptions.map(os => <SelectItem key={os} value={os}>{os}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={environmentFilter} onValueChange={v => { setEnvironmentFilter(v); setPage(1) }}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Environment" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Environments</SelectItem>
+              {environmentOptions.map(env => <SelectItem key={env} value={env}>{env}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={connectorFilter} onValueChange={v => { setConnectorFilter(v); setPage(1) }}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Connector" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Connectors</SelectItem>
+              {connectorOptions.map(conn => <SelectItem key={conn} value={conn}>{conn}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1) }}>
@@ -129,26 +233,18 @@ export default function AssetsPage() {
               {statusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={locationFilter} onValueChange={v => { setLocationFilter(v); setPage(1) }}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Location" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Locations</SelectItem>
-              {locationOptions.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={ownerFilter} onValueChange={v => { setOwnerFilter(v); setPage(1) }}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Owner" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Owners</SelectItem>
-              {ownerOptions.map(owner => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
         <div className="flex gap-2">
           <Dialog>
-            <DialogTrigger asChild>
-              <Button>+ Add Asset</Button>
-            </DialogTrigger>
+            {/* primary Add button on sm+, compact icon-only on xs */}
+            <div className="flex items-center gap-2">
+              <DialogTrigger asChild>
+                <Button variant="default" className="hidden sm:inline-flex">+ Add Asset</Button>
+              </DialogTrigger>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="inline-flex sm:hidden px-2">+</Button>
+              </DialogTrigger>
+            </div>
             {/* ...existing code for DialogContent... */}
             <DialogContent className="max-w-lg w-full p-0 min-h-[600px] flex flex-col justify-between rounded-xl shadow-lg overflow-hidden">
               {/* ...existing code for DialogHeader, Tabs, etc... */}
@@ -363,26 +459,32 @@ export default function AssetsPage() {
               </div>
             </DialogContent>
           </Dialog>
-          <Button variant="outline">Export</Button>
+          {/* Export: full label on sm+, compact icon on xs */}
+          <Button variant="outline" className="hidden sm:inline-flex items-center gap-2">
+            <DownloadCloud className="w-4 h-4" /> Export
+          </Button>
+          <Button variant="outline" size="sm" className="inline-flex sm:hidden p-2">
+            <DownloadCloud className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
+      <div className="overflow-x-auto">
       <Table
-        columns={[
-          { label: "Asset", key: "asset" },
-          { label: "Type", key: "type" },
-          { label: "Status", key: "status" },
-          { label: "Location", key: "location" },
-          { label: "Last Scanned", key: "lastScanned" },
-          { label: "Owner", key: "owner" },
-          { label: "Tags", key: "tags" },
-          { label: "Connector", key: "connector" },
-          { label: "Discovery Source", key: "discoverySource" },
-          { label: "External Ref", key: "externalRef" },
-          { label: "Actions", key: "actions" },
-        ]}
-        data={pagedData}
+         columns={[
+           { label: "Asset", key: "asset" },
+           { label: "OS", key: "os" },
+           { label: "Environment", key: "environment" },
+           { label: "Connector", key: "connector" },
+           { label: "Last Scanned", key: "lastScanned" },
+           { label: "Compliance", key: "compliance" },
+           { label: "Exceptions", key: "exceptions" },
+           { label: "Status", key: "status" },
+           { label: "Actions", key: "actions" },
+         ]}
+         data={pagedDataWithOsIcon}
       />
+      </div>
 
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-muted-foreground">Showing {(page - 1) * perPage + 1} - {Math.min(page * perPage, filteredAssets.length)} of {filteredAssets.length}</div>
@@ -390,13 +492,14 @@ export default function AssetsPage() {
           <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
             Prev
           </Button>
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto">
             {Array.from({ length: totalPages }).map((_, i) => (
               <Button
                 key={i}
-                variant={page === i + 1 ? undefined : "ghost"}
+                variant={page === i + 1 ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setPage(i + 1)}
+                className="min-w-[36px] px-2"
               >
                 {i + 1}
               </Button>
