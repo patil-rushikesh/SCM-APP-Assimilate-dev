@@ -22,33 +22,53 @@ func NewAssetHandler(service services.AssetService) *AssetHandler {
 	return &AssetHandler{service: service}
 }
 
-// Task 2: Manual Entry
-func (h *AssetHandler) CreateAsset(c *gin.Context) {
-	var asset models.Asset
-	if err := c.ShouldBindJSON(&asset); err != nil {
+func (h *AssetHandler) AddAsset(c *gin.Context) {
+	var req struct {
+		Hostname      string                 `json:"hostname"`
+		IP            string                 `json:"ip"`
+		Port          int                    `json:"port"`
+		ConnectorType string                 `json:"connector_type"`
+		Environment   string                 `json:"environment"`
+		Owner         string                 `json:"owner"`
+		Tags          []string               `json:"tags"`
+		OsFamily      string                 `json:"os_family"`
+		OsVersion     string                 `json:"os_version"`
+		Domain        string                 `json:"domain"`
+		Creds         map[string]interface{} `json:"creds"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid input", err)
 		return
 	}
 
-	// 1. Validation
-	if asset.Hostname == "" || asset.IPAddress == "" {
-		utils.ErrorResponse(c, http.StatusBadRequest, "Hostname and IP Address are required", nil)
-		return
-	}
-
-	// 2. Auto-Detect defaults
-	if asset.ConnectorType == "" {
-		if strings.Contains(strings.ToLower(asset.OSFamily), "win") {
-			asset.ConnectorType = "winrm"
-		} else {
-			asset.ConnectorType = "ssh"
+	// If credentials are provided, store them in the vault and get an ID
+	var credID string
+	if req.Creds != nil {
+		id, err := utils.StoreCredentials(req.Creds)
+		if err != nil {
+			utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to store credentials in vault", err)
+			return
 		}
-	}
-	if asset.DiscoverySource == "" {
-		asset.DiscoverySource = "manual"
+		credID = id
 	}
 
-	// 3. Call Service
+	// Build the asset model to persist; only store reference to credentials (credID)
+	asset := models.Asset{
+		Hostname:      req.Hostname,
+		IP:            req.IP,
+		Port:          req.Port,
+		ConnectorType: req.ConnectorType,
+		Environment:   req.Environment,
+		Owner:         req.Owner,
+		Tags:          strings.Join(req.Tags, ","), // store tags as CSV
+		OsFamily:      req.OsFamily,
+		OsVersion:     req.OsVersion,
+		Domain:        req.Domain,
+		CredId:        credID,
+	}
+
+	// Persist the asset via service
 	if err := h.service.CreateAsset(&asset); err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create asset", err)
 		return
