@@ -2,8 +2,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/lib/pq" // Required for Postgres Arrays
 	"gorm.io/gorm"
 )
 
